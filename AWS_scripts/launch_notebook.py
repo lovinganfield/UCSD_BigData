@@ -3,8 +3,11 @@ import sys,os
 import subprocess as sp
 import re
 
+#root = '/home/ubuntu/UCSD_BigData/pra/'
 root='/home/ubuntu/'
 filename=root+'scripts/NotebookCollections.md'
+#filename = '/home/ubuntu/scripts/NotebookCollections.md'
+
 
 def printFile(filename):
     file=open(filename,'r')
