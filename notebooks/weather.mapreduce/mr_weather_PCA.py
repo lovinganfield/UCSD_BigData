@@ -1,66 +1,63 @@
 #!/usr/bin/python
 """
-collect the statistics for each station.
+count the number of measurements of each type
 """
-import re,pickle,base64,zlib
-from sys import stderr
-import sys
+import pandas as pd
 import numpy as np
-
-sys.path.append('/usr/lib/python2.6/dist-packages') # a hack because anaconda made mrjob unreachable
+import sklearn as sk
+import sys
+sys.path.append('/usr/lib/python2.6/dist-packages')
 from mrjob.job import MRJob
-from mrjob.protocol import *
-
-import traceback
-from functools import wraps
+import re
 from sys import stderr
 
 class MRWeather(MRJob):
 
-    def map_one(self,line):
-        return line.split(',')
-    
     def mapper(self, _, line):
-        elements=self.map_one(line)
-        #yield(elements[0],elements[1:])
-        yield('sum',elements[1:])
+        self.increment_counter('MrJob Counters','mapper-all',1)
+        elements=line.split('\t')
+        elements[0] = elements[0].replace('"','')
+        temp = elements[1].split(',')
+        temp[0] = temp[0].replace('[','')
+        temp[len(temp)-1] = temp[len(temp)-1].replace(']','')
+        for i in range(0,len(temp)):
+            if temp[i]=='':
+                temp[i] = 0
+            else:
+                temp[i] = int(temp[i])
+        out = (elements[0],temp)
+        yield out
+        
+    def reducer2(self, word, counts):
+        for vector in counts:
+            yield (word,vector) 
             
-    def check_integrity(self,meas,year,length):
-        year=int(year)
-        if year<1000 or year > 2014: return False
-        if meas=='': return False
-        if length != 367: return False
-        return True
-            
-    def reducer(self, station, vectors):
-        sumvec=np.zeros(365)
-        sumvec2=np.zeros(365)
-        matr=np.zeros((365,365))
-        tt=0
+    def reducer(self, word, counts):
+        
+        sumv = np.zeros(730)
+        cov = np.zeros((730,730))
+        
+       
+        index=0
         data={}
-        for vector in vectors:
-            meas=vector[0]
-            year=vector[1]
-            length=len(vector)
-            number_defined=sum([e!='' for e in vector[2:]])
-            if self.check_integrity(meas,year,length)==True and number_defined==365:
-                if station=='sum':
-                    strvec=vector[2:]
-                    numvec=[int(ss) for ss in strvec]
-                    tt=tt+1
-                    data[tt]=numvec
-        for n in range(1,tt+1):
-            sumvec=sumvec+np.array(data[n])
-        if station=='sum':
-            sumlis=sumvec.tolist()
-            meanlis=[n/tt for n in sumlis]
-            yield('sum',meanlis)
-        for n in range(1,tt+1):
-            subtarr=np.array(numvec)-np.array(meanlis)
-            matr+=np.outer(subtarr,subtarr)
-        if station=='sum':
-            yield('PCA',matr.tolist())
-
+        for vector in counts:
+            data[index] = vector
+            index = index + 1
+        
+        for i in range(0,index):
+            sumv = sumv + np.array(data[i])
+        sumlist = sumv.tolist()
+        
+        meanlist = [float(i)/index for i in sumlist]
+        
+        for i in range(0,index):
+            temp = np.array(data[i])-np.array(meanlist)
+            cov = cov + np.outer(temp,temp)
+        cov = np.divide(cov,index)
+        covmatrix = np.reshape(cov,(1,730*730))
+        result = covmatrix.tolist()
+        out=(word,result)
+        yield out
                               
 if __name__ == '__main__':
     MRWeather.run()

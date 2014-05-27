@@ -18,11 +18,7 @@ class MRWeather(MRJob):
                 out=('header',1)
             else:
                 out=(elements[1],1)
-        except Exception, e:
-            stderr.write('Error in line:\n'+line)
-            stderr.write(e)
-            self.increment_counter('MrJob Counters','mapper-error',1)
-            out=('error',1)
+        cov = np.divide(cov,index)
 
         finally:
             yield out
